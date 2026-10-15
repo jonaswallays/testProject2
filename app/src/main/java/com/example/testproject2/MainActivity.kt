@@ -1,9 +1,9 @@
 package com.example.testproject2
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +21,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -38,19 +37,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
-import java.net.URLEncoder
 import java.net.URL
+import java.net.URLEncoder
 import java.util.Locale
-import androidx.core.content.edit
-import kotlin.collections.listOfNotNull
 
 class WeatherApplication : android.app.Application() {
     override fun onCreate() {
@@ -132,6 +130,7 @@ class WeatherViewModel : ViewModel() {
                 locations =
                     withContext(Dispatchers.IO) { OpenMeteoApi.searchLocations(query.trim()) }
             } catch (e: Exception) {
+                Log.e("Weather", "search failed", e)
                 locations = emptyList()
             } finally {
                 searchLoading = false
@@ -209,7 +208,7 @@ object OpenMeteoApi {
             "https://api.open-meteo.com/v1/forecast" +
                     "?latitude=${location.latitude}" +
                     "&longitude=${location.longitude}" +
-                    "&current=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,is_day" +
+                    "&current=temperature_2m,relative_humidity_2m,weather_code,is_day" +
                     "&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,is_day" +
                     "&forecast_days=7" +
                     "&timezone=auto"
@@ -239,11 +238,15 @@ object OpenMeteoApi {
         }
 
         val currentJson = json.getJSONObject("current")
+        val currentTime = currentJson.getString("time")            // e.g. 2026-10-15T14:30
+        val hourKey = currentTime.take(13)                          // e.g. 2026-10-15T14
+        val rainNow = list.firstOrNull { it.time.startsWith(hourKey) }?.rainProbability ?: 0
+
         val current = HourWeather(
-            time = currentJson.getString("time"),
+            time = currentTime,
             temperature = currentJson.getDouble("temperature_2m"),
             humidity = currentJson.getInt("relative_humidity_2m"),
-            rainProbability = currentJson.getInt("precipitation_probability"),
+            rainProbability = rainNow,
             weatherCode = currentJson.getInt("weather_code"),
             isDay = currentJson.getInt("is_day") == 1
         )
