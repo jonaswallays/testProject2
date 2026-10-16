@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -141,10 +143,10 @@ class WeatherViewModel : ViewModel() {
     fun selectLocation(location: LocationResult) {
         prefs.edit {
             putString("name", location.name)
-                .putString("admin", location.admin1)
-                .putString("country", location.country)
-                .putString("lat", location.latitude.toString())
-                .putString("lon", location.longitude.toString())
+            putString("admin", location.admin1)
+            putString("country", location.country)
+            putString("lat", location.latitude.toString())
+            putString("lon", location.longitude.toString())
         }
         locations = emptyList()
         loadWeather(location)
@@ -396,37 +398,76 @@ private fun ErrorState(message: String, retry: () -> Unit) {
 
 @Composable
 private fun WeatherContent(data: WeatherData) {
-    val current = data.current
+    val currentHourKey = data.current.time.take(13)
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item {
+    // Group the remaining hours by date: today from now on, the other days in full
+    val days = remember(data) {
+        data.hours
+            .filter { it.time >= currentHourKey }
+            .groupBy { it.time.take(10) }
+            .toList()
+    }
+    if (days.isEmpty()) return
+
+    val pagerState = rememberPagerState { days.size }
+
+    Column(Modifier.fillMaxSize()) {
+        Text(
+            data.location.displayName,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text("Tijdzone: ${data.timezone}", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(10.dp))
+
+        CurrentWeatherCard(data.current)
+        Spacer(Modifier.height(12.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                data.location.displayName,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Text("Tijdzone: ${data.timezone}", style = MaterialTheme.typography.bodySmall)
-        }
-        item { CurrentWeatherCard(current) }
-        item {
-            Text(
-                "Per uur",
+                dayLabel(days[pagerState.currentPage].first, pagerState.currentPage),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
-        }
-        items(data.hours.take(48)) { hour -> HourRow(hour) }
-        item {
             Text(
-                "Bron: Open-Meteo",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(vertical = 12.dp)
+                "${pagerState.currentPage + 1}/${days.size}  ← swipe →",
+                style = MaterialTheme.typography.bodySmall
             )
         }
+        Spacer(Modifier.height(8.dp))
+
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.weight(1f),
+            pageSpacing = 16.dp
+        ) { page ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(days[page].second) { hour -> HourRow(hour) }
+                item {
+                    Text(
+                        "Bron: Open-Meteo",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+                }
+            }
+        }
     }
+}
+
+private fun dayLabel(date: String, index: Int): String = when (index) {
+    0 -> "Vandaag"
+    1 -> "Morgen"
+    else -> java.time.LocalDate.parse(date)
+        .format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", Locale("nl")))
+        .replaceFirstChar { it.uppercase() }
 }
 
 @Composable
@@ -435,28 +476,29 @@ private fun CurrentWeatherCard(hour: HourWeather) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
-        Column(Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                weatherEmoji(hour.weatherCode, hour.isDay),
+                style = MaterialTheme.typography.displaySmall
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
                 Text(
-                    weatherEmoji(hour.weatherCode, hour.isDay),
-                    style = MaterialTheme.typography.displayMedium
+                    formatTemp(hour.temperature),
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold
                 )
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Text("Nu", style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        "${formatTemp(hour.temperature)}",
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        weatherDescription(hour.weatherCode),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
+                Text(
+                    weatherDescription(hour.weatherCode),
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
-            Spacer(Modifier.height(14.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(horizontalAlignment = Alignment.End) {
                 Metric("💧", "Vochtigheid", "${hour.humidity}%")
                 Metric("🌧️", "Regenkans", "${hour.rainProbability}%")
                 Metric("🕐", "Tijd", formatHour(hour.time))
@@ -467,10 +509,10 @@ private fun CurrentWeatherCard(hour: HourWeather) {
 
 @Composable
 private fun Metric(icon: String, label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(icon)
-        Text(value, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("$icon $label", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.width(8.dp))
+        Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
     }
 }
 
