@@ -81,6 +81,7 @@ data class HourWeather(
     val time: String,
     val temperature: Double,
     val humidity: Int,
+    val windSpeed: Double,
     val rainProbability: Int,
     val weatherCode: Int,
     val isDay: Boolean
@@ -210,8 +211,9 @@ object OpenMeteoApi {
             "https://api.open-meteo.com/v1/forecast" +
                     "?latitude=${location.latitude}" +
                     "&longitude=${location.longitude}" +
-                    "&current=temperature_2m,relative_humidity_2m,weather_code,is_day" +
-                    "&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,is_day" +
+                    "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,is_day" +
+                    "&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation_probability,weather_code,is_day" +
+                    "&wind_speed_unit=kmh" +
                     "&forecast_days=7" +
                     "&timezone=auto"
         )
@@ -220,6 +222,7 @@ object OpenMeteoApi {
         val times = hourly.getJSONArray("time")
         val temperatures = hourly.getJSONArray("temperature_2m")
         val humidities = hourly.getJSONArray("relative_humidity_2m")
+        val winds = hourly.getJSONArray("wind_speed_10m")
         val rain = hourly.getJSONArray("precipitation_probability")
         val codes = hourly.getJSONArray("weather_code")
         val day = hourly.getJSONArray("is_day")
@@ -231,6 +234,7 @@ object OpenMeteoApi {
                         time = times.getString(i),
                         temperature = temperatures.getDouble(i),
                         humidity = humidities.getInt(i),
+                        windSpeed = winds.getDouble(i),
                         rainProbability = rain.getInt(i),
                         weatherCode = codes.getInt(i),
                         isDay = day.getInt(i) == 1
@@ -248,6 +252,7 @@ object OpenMeteoApi {
             time = currentTime,
             temperature = currentJson.getDouble("temperature_2m"),
             humidity = currentJson.getInt("relative_humidity_2m"),
+            windSpeed = currentJson.getDouble("wind_speed_10m"),
             rainProbability = rainNow,
             weatherCode = currentJson.getInt("weather_code"),
             isDay = currentJson.getInt("is_day") == 1
@@ -500,6 +505,7 @@ private fun CurrentWeatherCard(hour: HourWeather) {
             }
             Column(horizontalAlignment = Alignment.End) {
                 Metric("💧", "Vochtigheid", "${hour.humidity}%")
+                Metric("💨", "Wind", formatWind(hour.windSpeed))
                 Metric("🌧️", "Regenkans", "${hour.rainProbability}%")
                 Metric("🕐", "Tijd", formatHour(hour.time))
             }
@@ -518,29 +524,25 @@ private fun Metric(icon: String, label: String, value: String) {
 
 @Composable
 private fun HourRow(hour: HourWeather) {
+    val small = MaterialTheme.typography.bodySmall
     Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 10.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                formatHour(hour.time),
-                modifier = Modifier.width(58.dp),
-                fontWeight = FontWeight.Bold
-            )
-            Text(weatherEmoji(hour.weatherCode, hour.isDay), modifier = Modifier.width(42.dp))
-            Text(
-                formatTemp(hour.temperature),
-                modifier = Modifier.width(62.dp),
-                fontWeight = FontWeight.Bold
-            )
-            Text("💧 ${hour.humidity}%", modifier = Modifier.width(80.dp))
-            Text("🌧 ${hour.rainProbability}%")
+            Text(formatHour(hour.time), modifier = Modifier.width(48.dp), fontWeight = FontWeight.Bold)
+            Text(weatherEmoji(hour.weatherCode, hour.isDay), modifier = Modifier.width(34.dp))
+            Text(formatTemp(hour.temperature), modifier = Modifier.width(48.dp), fontWeight = FontWeight.Bold)
+            Text("💧 ${hour.humidity}%", modifier = Modifier.width(58.dp), style = small)
+            Text("💨 ${formatWind(hour.windSpeed)}", modifier = Modifier.width(80.dp), style = small)
+            Text("🌧 ${hour.rainProbability}%", style = small)
         }
     }
 }
+
+private fun formatWind(value: Double): String = String.format(Locale.getDefault(), "%.0f km/h", value)
 
 private fun formatHour(value: String): String = value.substringAfter("T", value).take(5)
 
