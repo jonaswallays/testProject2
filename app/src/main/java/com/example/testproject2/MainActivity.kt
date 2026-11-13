@@ -83,6 +83,7 @@ data class HourWeather(
     val humidity: Int,
     val windSpeed: Double,
     val rainProbability: Int,
+    val precipitation: Double,   // mm
     val weatherCode: Int,
     val isDay: Boolean
 )
@@ -212,7 +213,7 @@ object OpenMeteoApi {
                     "?latitude=${location.latitude}" +
                     "&longitude=${location.longitude}" +
                     "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,is_day" +
-                    "&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation_probability,weather_code,is_day" +
+                    "&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation_probability,precipitation,weather_code,is_day" +
                     "&wind_speed_unit=kmh" +
                     "&forecast_days=7" +
                     "&timezone=auto"
@@ -224,6 +225,7 @@ object OpenMeteoApi {
         val humidities = hourly.getJSONArray("relative_humidity_2m")
         val winds = hourly.getJSONArray("wind_speed_10m")
         val rain = hourly.getJSONArray("precipitation_probability")
+        val precip = hourly.getJSONArray("precipitation")
         val codes = hourly.getJSONArray("weather_code")
         val day = hourly.getJSONArray("is_day")
 
@@ -236,6 +238,7 @@ object OpenMeteoApi {
                         humidity = humidities.getInt(i),
                         windSpeed = winds.getDouble(i),
                         rainProbability = rain.getInt(i),
+                        precipitation = precip.optDouble(i, 0.0),
                         weatherCode = codes.getInt(i),
                         isDay = day.getInt(i) == 1
                     )
@@ -247,6 +250,7 @@ object OpenMeteoApi {
         val currentTime = currentJson.getString("time")            // e.g. 2026-10-15T14:30
         val hourKey = currentTime.take(13)                          // e.g. 2026-10-15T14
         val rainNow = list.firstOrNull { it.time.startsWith(hourKey) }?.rainProbability ?: 0
+        val mmNow = list.firstOrNull { it.time.startsWith(hourKey) }?.precipitation ?: 0.0
 
         val current = HourWeather(
             time = currentTime,
@@ -254,6 +258,7 @@ object OpenMeteoApi {
             humidity = currentJson.getInt("relative_humidity_2m"),
             windSpeed = currentJson.getDouble("wind_speed_10m"),
             rainProbability = rainNow,
+            precipitation = mmNow,
             weatherCode = currentJson.getInt("weather_code"),
             isDay = currentJson.getInt("is_day") == 1
         )
@@ -507,6 +512,7 @@ private fun CurrentWeatherCard(hour: HourWeather) {
                 Metric("💧", "Vochtigheid", "${hour.humidity}%")
                 Metric("💨", "Wind", formatWind(hour.windSpeed))
                 Metric("🌧️", "Regenkans", "${hour.rainProbability}%")
+                Metric("🌧️", "Verwacht:", "${hour.precipitation } mm")
                 Metric("🕐", "Tijd", formatHour(hour.time))
             }
         }
@@ -532,12 +538,13 @@ private fun HourRow(hour: HourWeather) {
                 .padding(horizontal = 10.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(formatHour(hour.time), modifier = Modifier.width(48.dp), fontWeight = FontWeight.Bold)
+            Text(formatHourShort(hour.time), modifier = Modifier.width(48.dp), fontWeight = FontWeight.Bold)
             Text(weatherEmoji(hour.weatherCode, hour.isDay), modifier = Modifier.width(34.dp))
             Text(formatTemp(hour.temperature), modifier = Modifier.width(48.dp), fontWeight = FontWeight.Bold)
             Text("💧 ${hour.humidity}%", modifier = Modifier.width(58.dp), style = small)
             Text("💨 ${formatWind(hour.windSpeed)}", modifier = Modifier.width(80.dp), style = small)
             Text("🌧 ${hour.rainProbability}%", style = small)
+            Text(formatMm(hour.precipitation))
         }
     }
 }
@@ -545,6 +552,12 @@ private fun HourRow(hour: HourWeather) {
 private fun formatWind(value: Double): String = String.format(Locale.getDefault(), "%.0f km/h", value)
 
 private fun formatHour(value: String): String = value.substringAfter("T", value).take(5)
+
+private fun formatHourShort(value: String): String =
+    value.substringAfter("T", value).take(2).toIntOrNull()?.toString() ?: value
+
+private fun formatMm(value: Double): String =
+    String.format(Locale.getDefault(), "%.1f mm", value)
 
 private fun formatTemp(value: Double): String = String.format(Locale.getDefault(), "%.0f°C", value)
 
