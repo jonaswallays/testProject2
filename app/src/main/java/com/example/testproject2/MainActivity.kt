@@ -531,20 +531,39 @@ private fun Metric(icon: String, label: String, value: String) {
 @Composable
 private fun HourRow(hour: HourWeather) {
     val small = MaterialTheme.typography.bodySmall
-    Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 2.dp
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 12.dp),
+                .padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(formatHourShort(hour.time), modifier = Modifier.width(48.dp), fontWeight = FontWeight.Bold)
-            Text(weatherEmoji(hour.weatherCode, hour.isDay), modifier = Modifier.width(34.dp))
-            Text(formatTemp(hour.temperature), modifier = Modifier.width(48.dp), fontWeight = FontWeight.Bold)
-            Text("💧 ${hour.humidity}%", modifier = Modifier.width(58.dp), style = small)
-            Text("💨 ${formatWind(hour.windSpeed)}", modifier = Modifier.width(80.dp), style = small)
-            Text("🌧 ${hour.rainProbability}%", style = small)
-            Text(formatMm(hour.precipitation))
+            Text(
+                formatHourShort(hour.time),
+                modifier = Modifier.weight(0.8f),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Text(
+                weatherEmoji(hour.weatherCode, hour.isDay),
+                modifier = Modifier.weight(0.9f),
+                maxLines = 1
+            )
+            Text(
+                formatTemp(hour.temperature),
+                modifier = Modifier.weight(1.1f),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false
+            )
+            Text("💧${hour.humidity}%", modifier = Modifier.weight(1.2f), style = small, maxLines = 1, softWrap = false)
+            Text("💨${formatWind(hour.windSpeed)}", modifier = Modifier.weight(1.8f), style = small, maxLines = 1, softWrap = false)
+            Text("🌧${hour.rainProbability}%", modifier = Modifier.weight(1.2f), style = small, maxLines = 1, softWrap = false)
+            Text(formatMm(hour.precipitation), modifier = Modifier.weight(1.3f), style = small, maxLines = 1, softWrap = false)
         }
     }
 }
